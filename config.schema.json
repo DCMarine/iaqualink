@@ -47,50 +47,6 @@
           { "title": "Celsius (°C)", "enum": ["C"] }
         ],
         "description": "Override the temperature unit. If not set, the unit is detected automatically from the iAquaLink controller."
-      },
-      "auxiliaryDevices": {
-        "title": "Auxiliary Device Overrides",
-        "type": "array",
-        "description": "Optionally override the HomeKit service type for individual auxiliary outputs. Useful when iAquaLink cannot determine if an aux is a fan, valve, or switch.",
-        "items": {
-          "type": "object",
-          "properties": {
-            "aux": {
-              "title": "Aux Number",
-              "type": "string",
-              "description": "The auxiliary output number (e.g. \"1\" for Aux 1, \"2\" for Aux 2).",
-              "required": true
-            },
-            "type": {
-              "title": "Device Type",
-              "type": "string",
-              "default": "switch",
-              "oneOf": [
-                { "title": "Switch (generic on/off)", "enum": ["switch"] },
-                { "title": "Fan", "enum": ["fan"] },
-                { "title": "Valve (water feature)", "enum": ["valve"] }
-              ],
-              "required": true
-            },
-            "name": {
-              "title": "Display Name Override",
-              "type": "string",
-              "description": "Optional. Override the name shown in the Home app for this aux device."
-            },
-            "valveType": {
-              "title": "Valve Type",
-              "type": "string",
-              "default": "generic",
-              "description": "Only used when type is set to Valve.",
-              "oneOf": [
-                { "title": "Generic Valve", "enum": ["generic"] },
-                { "title": "Irrigation", "enum": ["irrigation"] },
-                { "title": "Shower Head", "enum": ["shower"] },
-                { "title": "Water Faucet", "enum": ["faucet"] }
-              ]
-            }
-          }
-        }
       }
     }
   },
@@ -105,23 +61,6 @@
       "title": "Options",
       "expandable": true,
       "items": ["pollingInterval", "temperatureUnit"]
-    },
-    {
-      "type": "fieldset",
-      "title": "Auxiliary Device Overrides",
-      "expandable": true,
-      "items": [
-        {
-          "key": "auxiliaryDevices",
-          "type": "array",
-          "items": [
-            "auxiliaryDevices[].aux",
-            "auxiliaryDevices[].type",
-            "auxiliaryDevices[].name",
-            "auxiliaryDevices[].valveType"
-          ]
-        }
-      ]
     }
   ]
 }
