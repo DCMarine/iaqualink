@@ -1,0 +1,66 @@
+{
+  "pluginAlias": "iAquaLink",
+  "pluginType": "platform",
+  "singular": true,
+  "headerDisplay": "Homebridge plugin for Jandy/Zodiac iAquaLink pool & spa controllers.",
+  "footerDisplay": "For help, visit: https://github.com/your-username/homebridge-iaqualink",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Platform Name",
+        "type": "string",
+        "default": "iAquaLink",
+        "required": true
+      },
+      "username": {
+        "title": "iAquaLink Username (Email)",
+        "type": "string",
+        "required": true,
+        "format": "email",
+        "placeholder": "your@email.com",
+        "description": "The email address you use to log into the iAquaLink app."
+      },
+      "password": {
+        "title": "iAquaLink Password",
+        "type": "string",
+        "required": true,
+        "x-schema-form": {
+          "type": "password"
+        },
+        "description": "Your iAquaLink account password."
+      },
+      "pollingInterval": {
+        "title": "Polling Interval (seconds)",
+        "type": "integer",
+        "default": 30,
+        "minimum": 10,
+        "maximum": 300,
+        "description": "How often (in seconds) to poll the iAquaLink API for device state updates."
+      },
+      "temperatureUnit": {
+        "title": "Temperature Unit",
+        "type": "string",
+        "default": "F",
+        "oneOf": [
+          { "title": "Fahrenheit (°F)", "enum": ["F"] },
+          { "title": "Celsius (°C)", "enum": ["C"] }
+        ],
+        "description": "Override the temperature unit. If not set, the unit is detected automatically from the iAquaLink controller."
+      }
+    }
+  },
+  "layout": [
+    {
+      "type": "fieldset",
+      "title": "Account",
+      "items": ["username", "password"]
+    },
+    {
+      "type": "fieldset",
+      "title": "Options",
+      "expandable": true,
+      "items": ["pollingInterval", "temperatureUnit"]
+    }
+  ]
+}

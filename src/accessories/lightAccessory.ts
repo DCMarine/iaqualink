@@ -1,0 +1,147 @@
+import { PlatformAccessory, CharacteristicValue, Service } from 'homebridge';
+import { IaquaLinkPlatform } from '../platform.js';
+import { ParsedDevice } from '../types.js';
+
+/**
+ * Light Accessory
+ * Handles: aux_light_switch, aux_dimmable_light, aux_color_light
+ *
+ * - aux_light_switch  → simple on/off Lightbulb
+ * - aux_dimmable_light → Lightbulb with Brightness (0/25/50/75/100%)
+ * - aux_color_light   → Lightbulb with effect selector via Brightness (each 10% = one effect)
+ */
+export class LightAccessory {
+  private service: Service;
+
+  constructor(
+    private readonly platform: IaquaLinkPlatform,
+    private readonly accessory: PlatformAccessory,
+  ) {
+    const device: ParsedDevice = accessory.context.device;
+
+    accessory.getService(this.platform.Service.AccessoryInformation)!
+      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Jandy / Zodiac')
+      .setCharacteristic(this.platform.Characteristic.Model, this.modelName(device))
+      .setCharacteristic(this.platform.Characteristic.SerialNumber, `${device.serial}-${device.name}`);
+
+    this.service = accessory.getService(this.platform.Service.Lightbulb)
+      || accessory.addService(this.platform.Service.Lightbulb);
+
+    this.service.setCharacteristic(this.platform.Characteristic.Name, device.label);
+
+    this.service.getCharacteristic(this.platform.Characteristic.On)
+      .onGet(this.getOn.bind(this))
+      .onSet(this.setOn.bind(this));
+
+    if (device.deviceType === 'aux_dimmable_light') {
+      this.service.getCharacteristic(this.platform.Characteristic.Brightness)
+        .onGet(this.getBrightness.bind(this))
+        .onSet(this.setBrightness.bind(this))
+        .setProps({ minValue: 0, maxValue: 100, minStep: 25 });
+    }
+
+    if (device.deviceType === 'aux_color_light') {
+      // Expose color effects as Brightness increments (each 10% = one effect mode)
+      this.service.getCharacteristic(this.platform.Characteristic.Brightness)
+        .onGet(this.getColorEffect.bind(this))
+        .onSet(this.setColorEffect.bind(this))
+        .setProps({ minValue: 0, maxValue: 100, minStep: 10 });
+    }
+  }
+
+  private get device(): ParsedDevice {
+    return this.accessory.context.device as ParsedDevice;
+  }
+
+  private modelName(device: ParsedDevice): string {
+    if (device.deviceType === 'aux_dimmable_light') { return 'Dimmable Light'; }
+    if (device.deviceType === 'aux_color_light') { return 'Color Light'; }
+    return 'Light Switch';
+  }
+
+  async getOn(): Promise<CharacteristicValue> {
+    const isOn = this.device.state === '1';
+    this.platform.log.debug(`[${this.device.label}] GET On -> ${isOn}`);
+    return isOn;
+  }
+
+  async setOn(value: CharacteristicValue): Promise<void> {
+    const on = value as boolean;
+    this.platform.log.info(`[${this.device.label}] SET On -> ${on}`);
+    const current = this.device.state === '1';
+    if (on === current) { return; }
+
+    try {
+      if (this.device.deviceType === 'aux_dimmable_light') {
+        await this.platform.api.setLight(this.device.serial, this.device.aux!, on ? '100' : '0');
+      } else if (this.device.deviceType === 'aux_color_light') {
+        await this.platform.api.setLight(
+          this.device.serial,
+          this.device.aux!,
+          on ? '1' : '0',
+          this.device.subtype,
+        );
+      } else {
+        await this.platform.api.setAux(this.device.serial, this.device.aux!);
+      }
+      this.device.state = on ? '1' : '0';
+    } catch (err) {
+      this.platform.log.error(`[${this.device.label}] Failed to set light:`, String(err));
+      throw new this.platform.homebridgeApi.hap.HapStatusError(
+        this.platform.homebridgeApi.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE,
+      );
+    }
+  }
+
+  async getBrightness(): Promise<CharacteristicValue> {
+    // subtype stores brightness level for dimmable lights
+    const brightness = parseInt(this.device.subtype ?? '100', 10);
+    this.platform.log.debug(`[${this.device.label}] GET Brightness -> ${brightness}%`);
+    return brightness;
+  }
+
+  async setBrightness(value: CharacteristicValue): Promise<void> {
+    const brightness = value as number;
+    // Snap to nearest 25%
+    const snapped = Math.round(brightness / 25) * 25;
+    this.platform.log.info(`[${this.device.label}] SET Brightness -> ${snapped}%`);
+    try {
+      await this.platform.api.setLight(this.device.serial, this.device.aux!, String(snapped));
+      this.device.subtype = String(snapped);
+      this.device.state = snapped > 0 ? '1' : '0';
+    } catch (err) {
+      this.platform.log.error(`[${this.device.label}] Failed to set brightness:`, String(err));
+      throw new this.platform.homebridgeApi.hap.HapStatusError(
+        this.platform.homebridgeApi.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE,
+      );
+    }
+  }
+
+  async getColorEffect(): Promise<CharacteristicValue> {
+    const effectId = parseInt(this.device.state ?? '0', 10);
+    // Map effect ID (0-17) to 0-100% in 10% steps
+    const brightness = Math.min(effectId * 10, 100);
+    this.platform.log.debug(`[${this.device.label}] GET ColorEffect -> ${brightness}% (effect ${effectId})`);
+    return brightness;
+  }
+
+  async setColorEffect(value: CharacteristicValue): Promise<void> {
+    const brightness = value as number;
+    const effectId = Math.round(brightness / 10);
+    this.platform.log.info(`[${this.device.label}] SET ColorEffect -> effect ${effectId}`);
+    try {
+      await this.platform.api.setLight(
+        this.device.serial,
+        this.device.aux!,
+        String(effectId),
+        this.device.subtype,
+      );
+      this.device.state = String(effectId > 0 ? 1 : 0);
+    } catch (err) {
+      this.platform.log.error(`[${this.device.label}] Failed to set color effect:`, String(err));
+      throw new this.platform.homebridgeApi.hap.HapStatusError(
+        this.platform.homebridgeApi.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE,
+      );
+    }
+  }
+}
