@@ -1,7 +1,18 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LightAccessory = void 0;
+/**
+ * Light Accessory
+ * Handles: aux_light_switch, aux_dimmable_light, aux_color_light
+ *
+ * - aux_light_switch  → simple on/off Lightbulb
+ * - aux_dimmable_light → Lightbulb with Brightness (0/25/50/75/100%)
+ * - aux_color_light   → Lightbulb with effect selector via Brightness (each 10% = one effect)
+ */
 class LightAccessory {
+    platform;
+    accessory;
+    service;
     constructor(platform, accessory) {
         this.platform = platform;
         this.accessory = accessory;
@@ -23,16 +34,23 @@ class LightAccessory {
                 .setProps({ minValue: 0, maxValue: 100, minStep: 25 });
         }
         if (device.deviceType === 'aux_color_light') {
+            // Expose color effects as Brightness increments (each 10% = one effect mode)
             this.service.getCharacteristic(this.platform.Characteristic.Brightness)
                 .onGet(this.getColorEffect.bind(this))
                 .onSet(this.setColorEffect.bind(this))
                 .setProps({ minValue: 0, maxValue: 100, minStep: 10 });
         }
     }
-    get device() { return this.accessory.context.device; }
+    get device() {
+        return this.accessory.context.device;
+    }
     modelName(device) {
-        if (device.deviceType === 'aux_dimmable_light') { return 'Dimmable Light'; }
-        if (device.deviceType === 'aux_color_light') { return 'Color Light'; }
+        if (device.deviceType === 'aux_dimmable_light') {
+            return 'Dimmable Light';
+        }
+        if (device.deviceType === 'aux_color_light') {
+            return 'Color Light';
+        }
         return 'Light Switch';
     }
     async getOn() {
@@ -44,7 +62,9 @@ class LightAccessory {
         const on = value;
         this.platform.log.info(`[${this.device.label}] SET On -> ${on}`);
         const current = this.device.state === '1';
-        if (on === current) { return; }
+        if (on === current) {
+            return;
+        }
         try {
             if (this.device.deviceType === 'aux_dimmable_light') {
                 await this.platform.api.setLight(this.device.serial, this.device.aux, on ? '100' : '0');
@@ -59,16 +79,18 @@ class LightAccessory {
         }
         catch (err) {
             this.platform.log.error(`[${this.device.label}] Failed to set light:`, String(err));
-            throw new this.platform.homebridgeApi.hap.HapStatusError(this.platform.homebridgeApi.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+            throw new this.platform.homebridgeApi.hap.HapStatusError(-70402 /* this.platform.homebridgeApi.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE */);
         }
     }
     async getBrightness() {
+        // subtype stores brightness level for dimmable lights
         const brightness = parseInt(this.device.subtype ?? '100', 10);
         this.platform.log.debug(`[${this.device.label}] GET Brightness -> ${brightness}%`);
         return brightness;
     }
     async setBrightness(value) {
         const brightness = value;
+        // Snap to nearest 25%
         const snapped = Math.round(brightness / 25) * 25;
         this.platform.log.info(`[${this.device.label}] SET Brightness -> ${snapped}%`);
         try {
@@ -78,11 +100,12 @@ class LightAccessory {
         }
         catch (err) {
             this.platform.log.error(`[${this.device.label}] Failed to set brightness:`, String(err));
-            throw new this.platform.homebridgeApi.hap.HapStatusError(this.platform.homebridgeApi.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+            throw new this.platform.homebridgeApi.hap.HapStatusError(-70402 /* this.platform.homebridgeApi.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE */);
         }
     }
     async getColorEffect() {
         const effectId = parseInt(this.device.state ?? '0', 10);
+        // Map effect ID (0-17) to 0-100% in 10% steps
         const brightness = Math.min(effectId * 10, 100);
         this.platform.log.debug(`[${this.device.label}] GET ColorEffect -> ${brightness}% (effect ${effectId})`);
         return brightness;
@@ -97,7 +120,7 @@ class LightAccessory {
         }
         catch (err) {
             this.platform.log.error(`[${this.device.label}] Failed to set color effect:`, String(err));
-            throw new this.platform.homebridgeApi.hap.HapStatusError(this.platform.homebridgeApi.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+            throw new this.platform.homebridgeApi.hap.HapStatusError(-70402 /* this.platform.homebridgeApi.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE */);
         }
     }
 }

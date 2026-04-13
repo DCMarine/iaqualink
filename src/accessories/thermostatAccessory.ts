@@ -2,8 +2,6 @@ import { PlatformAccessory, CharacteristicValue, Service } from 'homebridge';
 import { IaquaLinkPlatform } from '../platform.js';
 import { ParsedDevice } from '../types.js';
 
-const TEMP_F_MIN = 34;
-const TEMP_F_MAX = 104;
 const TEMP_C_MIN = 1;
 const TEMP_C_MAX = 40;
 

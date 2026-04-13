@@ -1,15 +1,24 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SwitchAccessory = void 0;
+/**
+ * Switch Accessory
+ * Handles: pool_pump, spa_pump, pool_heater, spa_heater, aux_switch
+ */
 class SwitchAccessory {
+    platform;
+    accessory;
+    service;
     constructor(platform, accessory) {
         this.platform = platform;
         this.accessory = accessory;
         const device = accessory.context.device;
+        // Set accessory information
         accessory.getService(this.platform.Service.AccessoryInformation)
             .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Jandy / Zodiac')
             .setCharacteristic(this.platform.Characteristic.Model, this.modelName(device.deviceType))
             .setCharacteristic(this.platform.Characteristic.SerialNumber, `${device.serial}-${device.name}`);
+        // Use Switch service
         this.service = accessory.getService(this.platform.Service.Switch)
             || accessory.addService(this.platform.Service.Switch);
         this.service.setCharacteristic(this.platform.Characteristic.Name, device.label);
@@ -38,6 +47,7 @@ class SwitchAccessory {
         this.platform.log.info(`[${device.label}] SET On -> ${value}`);
         const on = value;
         const currentOn = device.state === '1' || device.state === '3';
+        // Only toggle if state actually needs to change
         if (on === currentOn) {
             return;
         }
@@ -63,11 +73,12 @@ class SwitchAccessory {
                 default:
                     this.platform.log.warn(`[${device.label}] Unknown device type for setOn: ${device.deviceType}`);
             }
+            // Optimistically update state
             device.state = on ? '1' : '0';
         }
         catch (err) {
             this.platform.log.error(`[${device.label}] Failed to set switch state:`, String(err));
-            throw new this.platform.homebridgeApi.hap.HapStatusError(this.platform.homebridgeApi.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+            throw new this.platform.homebridgeApi.hap.HapStatusError(-70402 /* this.platform.homebridgeApi.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE */);
         }
     }
 }

@@ -15,6 +15,8 @@ import { SwitchAccessory } from './accessories/switchAccessory.js';
 import { ThermostatAccessory } from './accessories/thermostatAccessory.js';
 import { LightAccessory } from './accessories/lightAccessory.js';
 import { SensorAccessory } from './accessories/sensorAccessory.js';
+import { FanAccessory } from './accessories/fanAccessory.js';
+import { ValveAccessory } from './accessories/valveAccessory.js';
 
 export class IaquaLinkPlatform implements DynamicPlatformPlugin {
   public readonly Service: typeof Service;
@@ -88,22 +90,43 @@ export class IaquaLinkPlatform implements DynamicPlatformPlugin {
 
   private async discoverSystemDevices(system: IAqualinkDevice) {
     this.log.info(`Discovering devices for system: ${system.name} (${system.serial_number})`);
+
+    // Determine temperature unit and register home-screen devices (pumps, heaters, temps).
+    // Kept in its own try/catch so a failure here does not prevent aux devices from loading.
+    let tempUnit: string = this.config.temperatureUnit ?? 'F';
     try {
       const homeData = await this.api.getHomeScreen(system.serial_number) as HomeScreenResponse;
-      const devicesData = await this.api.getDevicesScreen(system.serial_number) as DevicesScreenResponse;
-      const tempUnit = homeData?.home_screen?.[3]?.temp_scale ?? 'F';
-
-      const parsedDevices = [
-        ...this.parseHomeScreen(homeData, system, tempUnit),
-        ...this.parseDevicesScreen(devicesData, system, tempUnit),
-      ];
-
-      for (const device of parsedDevices) {
+      tempUnit = this.extractTempUnit(homeData);
+      for (const device of this.parseHomeScreen(homeData, system, tempUnit)) {
         this.registerDevice(device);
       }
     } catch (err) {
-      this.log.error(`Failed to discover devices for ${system.name}:`, String(err));
+      this.log.error(`[${system.name}] Failed to load home-screen devices:`, String(err));
     }
+
+    // Register auxiliary devices independently so a failure above doesn't suppress them.
+    try {
+      const devicesData = await this.api.getDevicesScreen(system.serial_number) as DevicesScreenResponse;
+      const auxDevices = this.parseDevicesScreen(devicesData, system, tempUnit);
+      this.log.info(`[${system.name}] Found ${auxDevices.length} auxiliary device(s).`);
+      for (const device of auxDevices) {
+        this.registerDevice(device);
+      }
+    } catch (err) {
+      this.log.error(`[${system.name}] Failed to load auxiliary devices:`, String(err));
+    }
+  }
+
+  /** Searches home_screen for the temp_scale entry regardless of its position. */
+  private extractTempUnit(homeData: HomeScreenResponse): string {
+    const screen = homeData?.home_screen;
+    if (!screen) { return this.config.temperatureUnit ?? 'F'; }
+    for (const item of screen) {
+      if (Object.prototype.hasOwnProperty.call(item, 'temp_scale')) {
+        return item['temp_scale'] || 'F';
+      }
+    }
+    return this.config.temperatureUnit ?? 'F';
   }
 
   private parseHomeScreen(data: HomeScreenResponse, system: IAqualinkDevice, tempUnit: string): ParsedDevice[] {
@@ -135,28 +158,58 @@ export class IaquaLinkPlatform implements DynamicPlatformPlugin {
   private parseDevicesScreen(data: DevicesScreenResponse, system: IAqualinkDevice, tempUnit: string): ParsedDevice[] {
     const screen = data?.devices_screen;
     if (!screen) {
+      this.log.warn(`[${system.name}] devices_screen missing from API response — no auxiliary devices loaded.`);
       return [];
     }
     const parsed: ParsedDevice[] = [];
-    for (const item of screen.slice(3)) {
+
+    for (const item of screen) {
       const auxKey = Object.keys(item)[0];
-      const attrs: Record<string, string> = { aux: auxKey.replace('aux_', '') };
-      for (const sub of Object.values(item)[0] as Record<string, string>[]) {
-        Object.assign(attrs, sub);
-      }
-      if (!attrs.name || attrs.state === undefined) {
+
+      // Skip header/metadata rows — only process entries whose key starts with 'aux_'
+      if (!auxKey || !auxKey.startsWith('aux_')) { continue; }
+
+      // Pre-seed attrs with the aux number and name (matching iAquaLink library behaviour)
+      const attrs: Record<string, string> = {
+        aux: auxKey.replace('aux_', ''),
+        name: auxKey,
+      };
+
+      // Safely merge each attribute sub-object (guard against non-array API variants)
+      const subItems = Object.values(item)[0];
+      if (Array.isArray(subItems)) {
+        for (const sub of subItems as Record<string, string>[]) {
+          Object.assign(attrs, sub);
+        }
+      } else {
+        this.log.debug(`[${system.name}] Unexpected format for ${auxKey} — skipping.`);
         continue;
       }
+
+      if (attrs.state === undefined) {
+        this.log.debug(`[${system.name}] ${auxKey} has no state value — skipping.`);
+        continue;
+      }
+
       const deviceType = this.inferAuxDeviceType(attrs);
-      if (!deviceType) {
+      if (!deviceType) { continue; }
+
+      // Use the label exactly as named in the iAquaLink app; fall back to the aux key
+      const label = attrs.label ?? attrs.name;
+
+      // Skip devices that haven't been given a proper name in the iAquaLink app
+      // (their label will still be the raw key such as "aux_1", "aux_2", etc.)
+      if (label.toLowerCase().startsWith('aux')) {
+        this.log.debug(`[${system.name}] Skipping unnamed aux device: ${label}`);
         continue;
       }
-      const rawLabel = attrs.label ?? attrs.name;
+
+      this.log.debug(`[${system.name}] Aux device: "${label}" (${auxKey}, type=${attrs.type ?? '0'}, state=${attrs.state})`);
       parsed.push({
         serial: system.serial_number,
         systemName: system.name,
         name: attrs.name,
-        label: rawLabel.split(/[\s_]+/).map((w: string) => w[0]?.toUpperCase() + w.slice(1)).join(' '),
+        label,
         state: String(attrs.state),
         deviceType,
         aux: attrs.aux,
@@ -183,13 +236,30 @@ export class IaquaLinkPlatform implements DynamicPlatformPlugin {
   }
 
   private inferAuxDeviceType(attrs: Record<string, string>): DeviceType | null {
+    // Config overrides take priority — check if user explicitly typed this aux
+    const override = this.config.auxiliaryDevices?.find(a => a.aux === attrs.aux);
+    if (override) {
+      if (override.type === 'fan') { return 'aux_fan'; }
+      if (override.type === 'valve') { return 'aux_valve'; }
+      return 'aux_switch';
+    }
+
+    // Auto-detect from iAquaLink type field:
+    //   0 = generic on/off switch
+    //   1 = dimmable light
+    //   2 = color light
     if (attrs.type === '2') { return 'aux_color_light'; }
     if (attrs.type === '1') { return 'aux_dimmable_light'; }
-    if (attrs.label && attrs.label.toUpperCase().includes('LIGHT')) { return 'aux_light_switch'; }
-    return 'aux_switch';
+    return 'aux_switch'; // type '0' or absent → generic switch
   }
 
   private registerDevice(device: ParsedDevice) {
+    // Apply config name override for aux devices
+    const override = this.config.auxiliaryDevices?.find(a => a.aux === device.aux);
+    if (override?.name) {
+      device.label = override.name;
+    }
+
     const uuid = this.homebridgeApi.hap.uuid.generate(`${device.serial}-${device.name}`);
     const existing = this.accessories.find(a => a.UUID === uuid);
 
@@ -217,6 +287,12 @@ export class IaquaLinkPlatform implements DynamicPlatformPlugin {
       case 'spa_heater':
       case 'aux_switch':
         new SwitchAccessory(this, accessory);
+        break;
+      case 'aux_fan':
+        new FanAccessory(this, accessory);
+        break;
+      case 'aux_valve':
+        new ValveAccessory(this, accessory);
         break;
       case 'pool_set_point':
       case 'spa_set_point':
@@ -248,23 +324,34 @@ export class IaquaLinkPlatform implements DynamicPlatformPlugin {
     }
     for (const system of systems) {
       if (system.device_type !== 'iaqua') { continue; }
+
+      let tempUnit: string = this.config.temperatureUnit ?? 'F';
+
+      // Poll home-screen devices independently
       try {
         const homeData = await this.api.getHomeScreen(system.serial_number) as HomeScreenResponse;
-        const devicesData = await this.api.getDevicesScreen(system.serial_number) as DevicesScreenResponse;
-        const tempUnit = homeData?.home_screen?.[3]?.temp_scale ?? 'F';
-        const updates = [
-          ...this.parseHomeScreen(homeData, system, tempUnit),
-          ...this.parseDevicesScreen(devicesData, system, tempUnit),
-        ];
-        for (const update of updates) {
-          const uuid = this.homebridgeApi.hap.uuid.generate(`${update.serial}-${update.name}`);
-          const accessory = this.accessories.find(a => a.UUID === uuid);
-          if (accessory) {
-            accessory.context.device = update;
-          }
-        }
+        tempUnit = this.extractTempUnit(homeData);
+        this.applyUpdates(this.parseHomeScreen(homeData, system, tempUnit));
       } catch (err) {
-        this.log.debug(`Poll error for ${system.name}:`, String(err));
+        this.log.debug(`[${system.name}] Poll error (home screen):`, String(err));
+      }
+
+      // Poll auxiliary devices independently
+      try {
+        const devicesData = await this.api.getDevicesScreen(system.serial_number) as DevicesScreenResponse;
+        this.applyUpdates(this.parseDevicesScreen(devicesData, system, tempUnit));
+      } catch (err) {
+        this.log.debug(`[${system.name}] Poll error (auxiliary devices):`, String(err));
+      }
+    }
+  }
+
+  private applyUpdates(updates: ParsedDevice[]) {
+    for (const update of updates) {
+      const uuid = this.homebridgeApi.hap.uuid.generate(`${update.serial}-${update.name}`);
+      const accessory = this.accessories.find(a => a.UUID === uuid);
+      if (accessory) {
+        accessory.context.device = update;
       }
     }
   }

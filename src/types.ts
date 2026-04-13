@@ -1,3 +1,13 @@
+export type AuxType = 'switch' | 'fan' | 'valve';
+export type ValveType = 'generic' | 'irrigation' | 'shower' | 'faucet';
+
+export interface AuxDeviceConfig {
+  aux: string;           // aux number as a string, e.g. "1", "2"
+  type: AuxType;         // HomeKit service type to use
+  name?: string;         // optional display name override
+  valveType?: ValveType; // only used when type === 'valve'
+}
+
 export interface IaquaLinkConfig {
   platform: string;
   name: string;
@@ -5,6 +15,7 @@ export interface IaquaLinkConfig {
   password: string;
   pollingInterval?: number; // seconds, default 30
   temperatureUnit?: 'F' | 'C';
+  auxiliaryDevices?: AuxDeviceConfig[];
 }
 
 export interface DeviceState {
@@ -29,6 +40,8 @@ export type DeviceType =
   | 'solar_temp'
   | 'freeze_protection'
   | 'aux_switch'
+  | 'aux_fan'
+  | 'aux_valve'
   | 'aux_light_switch'
   | 'aux_dimmable_light'
   | 'aux_color_light'

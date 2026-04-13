@@ -1,21 +1,27 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.IAqualinkApiClient = exports.SESSION_URL = exports.DEVICES_URL = exports.REFRESH_URL = exports.LOGIN_URL = exports.AQUALINK_API_KEY = void 0;
-const axios_1 = require("axios");
+const axios_1 = __importDefault(require("axios"));
 exports.AQUALINK_API_KEY = 'EOOEMOW4YR6QNB07';
 exports.LOGIN_URL = 'https://prod.zodiac-io.com/users/v1/login';
 exports.REFRESH_URL = 'https://prod.zodiac-io.com/users/v1/refresh';
 exports.DEVICES_URL = 'https://r-api.iaqualink.net/devices.json';
 exports.SESSION_URL = 'https://r-api.iaqualink.net/v2/mobile/session.json';
 class IAqualinkApiClient {
+    username;
+    password;
+    http;
+    authToken = '';
+    userId = '';
+    sessionId = '';
+    idToken = '';
+    refreshToken = '';
     constructor(username, password) {
         this.username = username;
         this.password = password;
-        this.authToken = '';
-        this.userId = '';
-        this.sessionId = '';
-        this.idToken = '';
-        this.refreshToken = '';
         this.http = axios_1.default.create({
             headers: {
                 'user-agent': 'okhttp/3.14.7',
@@ -53,6 +59,7 @@ class IAqualinkApiClient {
             }
         }
         catch {
+            // Refresh failed — fall back to full login
             await this.login();
         }
     }

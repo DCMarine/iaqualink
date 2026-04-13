@@ -4,7 +4,16 @@ exports.SensorAccessory = void 0;
 function fahrenheitToCelsius(f) {
     return Math.round(((f - 32) * 5) / 9 * 10) / 10;
 }
+/**
+ * Sensor Accessory
+ * Handles:
+ *   - pool_temp, spa_temp, air_temp, solar_temp → TemperatureSensor service
+ *   - freeze_protection → OccupancySensor service (active = freeze protection is ON)
+ */
 class SensorAccessory {
+    platform;
+    accessory;
+    service;
     constructor(platform, accessory) {
         this.platform = platform;
         this.accessory = accessory;
@@ -29,8 +38,12 @@ class SensorAccessory {
                 .setProps({ minValue: -40, maxValue: 100 });
         }
     }
-    get device() { return this.accessory.context.device; }
-    get isFahrenheit() { return (this.device.tempUnit ?? 'F') === 'F'; }
+    get device() {
+        return this.accessory.context.device;
+    }
+    get isFahrenheit() {
+        return (this.device.tempUnit ?? 'F') === 'F';
+    }
     modelName(type) {
         const map = {
             pool_temp: 'Pool Temperature Sensor',
@@ -45,7 +58,7 @@ class SensorAccessory {
         const raw = parseFloat(this.device.state);
         if (isNaN(raw)) {
             this.platform.log.debug(`[${this.device.label}] No temperature reading available`);
-            throw new this.platform.homebridgeApi.hap.HapStatusError(this.platform.homebridgeApi.hap.HAPStatus.NOT_ALLOWED_IN_CURRENT_STATE);
+            throw new this.platform.homebridgeApi.hap.HapStatusError(-70412 /* this.platform.homebridgeApi.hap.HAPStatus.NOT_ALLOWED_IN_CURRENT_STATE */);
         }
         const tempC = this.isFahrenheit ? fahrenheitToCelsius(raw) : raw;
         this.platform.log.debug(`[${this.device.label}] GET Temperature -> ${tempC}°C (raw: ${raw}°${this.isFahrenheit ? 'F' : 'C'})`);

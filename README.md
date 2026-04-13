@@ -1,6 +1,6 @@
 # homebridge-iaqualink
 
-A [Homebridge](https://homebridge.io) plugin for Jandy/Zodiac **iAquaLink** pool and spa controllers. Control your pool equipment — pumps, heaters, lights, and more — directly from the Apple Home app and Siri.
+A [Homebridge](https://homebridge.io) plugin for Jandy/Zodiac **iAquaLink** pool and spa controllers. Control your pool equipment — pumps, heaters, lights, auxiliary devices, and more — directly from the Apple Home app and Siri.
 
 [![npm](https://img.shields.io/npm/v/homebridge-iaqualink)](https://www.npmjs.com/package/homebridge-iaqualink)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -13,6 +13,7 @@ A [Homebridge](https://homebridge.io) plugin for Jandy/Zodiac **iAquaLink** pool
 - 🏊 **Pool & spa pump** on/off control
 - 🔥 **Heater control** with temperature set point (pool and spa)
 - 💡 **Lights** — simple on/off, dimmable (25% increments), and multi-color effects
+- 🔧 **Auxiliary devices** — auto-discovered; fans, valves, and switches all supported
 - 🌡️ **Temperature sensors** — pool, spa, air, and solar temps
 - ❄️ **Freeze protection** indicator
 - 🔁 **Automatic polling** — keeps HomeKit state in sync (configurable interval)
@@ -93,30 +94,69 @@ Then add the platform to your `~/.homebridge/config.json` (see [Configuration](#
 | `password` | `string` | **required** | Password for your iAquaLink account |
 | `pollingInterval` | `number` | `30` | How often (seconds) to poll for state updates. Min: 10, Max: 300 |
 | `temperatureUnit` | `"F"` \| `"C"` | auto-detected | Override the temperature unit. If omitted, the unit is read from your controller. |
+| `auxiliaryDevices` | `array` | — | Optional overrides for individual auxiliary outputs. See [Auxiliary Devices](#auxiliary-devices) below. |
 
 ---
 
 ## Supported Devices
 
-All devices are **auto-discovered** from your iAquaLink account on startup. No manual device configuration is needed.
+All devices are **auto-discovered** from your iAquaLink account on startup. No manual configuration is needed for pumps, heaters, temperatures, or named auxiliary devices.
+
+### Pool & Spa Equipment
 
 | iAquaLink Device | HomeKit Service | Notes |
 |---|---|---|
 | Pool Pump | **Switch** | On/Off |
 | Spa Pump | **Switch** | On/Off |
-| Pool Heater | **Switch** | On/Off (also linked to Pool Thermostat) |
-| Spa Heater | **Switch** | On/Off (also linked to Spa Thermostat) |
-| Pool Set Point | **Thermostat** | Current temp, target temp, heater on/off |
-| Spa Set Point | **Thermostat** | Current temp, target temp, heater on/off |
+| Pool Heater | **Switch** | On/Off; also controls the Pool Thermostat heating mode |
+| Spa Heater | **Switch** | On/Off; also controls the Spa Thermostat heating mode |
+| Pool Set Point | **Thermostat** | Current temp (from sensor), target temp, heater on/off |
+| Spa Set Point | **Thermostat** | Current temp (from sensor), target temp, heater on/off |
 | Pool Temperature | **Temperature Sensor** | Read-only |
 | Spa Temperature | **Temperature Sensor** | Read-only |
 | Air Temperature | **Temperature Sensor** | Read-only |
 | Solar Temperature | **Temperature Sensor** | Read-only |
-| Freeze Protection | **Occupancy Sensor** | Active = freeze protection enabled |
-| Aux Switch | **Switch** | Generic on/off auxiliary |
-| Aux Light Switch | **Lightbulb** | On/Off |
-| Aux Dimmable Light | **Lightbulb** | Brightness in 25% increments |
-| Aux Color Light | **Lightbulb** | Brightness slider selects color effect (each 10% = one effect mode) |
+| Freeze Protection | **Occupancy Sensor** | Active = freeze protection is enabled |
+
+### Auxiliary Devices
+
+Auxiliary outputs are **auto-discovered**. The HomeKit service is determined by the iAquaLink `type` field:
+
+| iAquaLink `type` | HomeKit Service | Example devices |
+|---|---|---|
+| `0` — generic switch | **Switch** | Spa jets, cleaners, chlorinators |
+| `1` — dimmable light | **Lightbulb** (with brightness) | Dimmable pool/spa lights |
+| `2` — color light | **Lightbulb** (with effect selector) | Jandy WaterColors, Pentair SAm/SAL |
+
+> **Only named devices appear.** Auxiliary outputs that have not been given a name in the iAquaLink app (i.e. their label is still `aux_1`, `aux_2`, etc.) are automatically hidden. Name them in the iAquaLink app and they will appear on the next Homebridge restart.
+
+#### Overriding the HomeKit service type
+
+Use `auxiliaryDevices` in your config to override how a specific output is presented in HomeKit — useful for fans, water valves, and bubblers that iAquaLink reports as a generic switch:
+
+```json
+{
+  "platforms": [{
+    "platform": "iAquaLink",
+    "username": "your@email.com",
+    "password": "your-password",
+    "auxiliaryDevices": [
+      { "aux": "1", "type": "switch", "name": "Spa Jets" },
+      { "aux": "2", "type": "fan",    "name": "Aerator" },
+      { "aux": "3", "type": "valve",  "name": "Waterfall", "valveType": "faucet" },
+      { "aux": "4", "type": "valve",  "name": "Bubblers",  "valveType": "generic" }
+    ]
+  }]
+}
+```
+
+| `aux` | The auxiliary output number (`"1"` = Aux 1, `"2"` = Aux 2, …) |
+|---|---|
+| `type` | `"switch"`, `"fan"`, or `"valve"` |
+| `name` | Optional display-name override shown in the Home app |
+| `valveType` | Only for `"valve"`: `"generic"`, `"irrigation"`, `"shower"`, or `"faucet"` |
+
+Config overrides take priority over the auto-detected type from iAquaLink.
 
 ---
 
@@ -124,8 +164,8 @@ All devices are **auto-discovered** from your iAquaLink account on startup. No m
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-username/homebridge-iaqualink.git
-cd homebridge-iaqualink
+git clone https://github.com/dcmarine/iaqualink.git
+cd iaqualink
 
 # Install dependencies
 npm install
