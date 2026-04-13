@@ -231,14 +231,22 @@ docker restart homebridge
 
 ## Troubleshooting
 
-**Devices not appearing in HomeKit**
+**Pool/spa devices not appearing in HomeKit**
 - Ensure your iAquaLink system type is `iaqua` (standard Jandy/Zodiac pool controller). eXO chlorinators and Zodiac robotic cleaners use different APIs and are not currently supported.
 - Check the Homebridge logs for login or API errors.
+
+**Auxiliary devices not appearing**
+- Auxiliary outputs must be **named in the iAquaLink app** before they appear in HomeKit. Outputs still using the default name (`Aux 1`, `aux_1`, etc.) are intentionally hidden.
+- Name the device in the iAquaLink app, then restart Homebridge.
+- Enable Homebridge debug logging (`-D`) to see a line like `Skipping unnamed aux device: aux_3` which confirms the device is being discovered but filtered out.
+
+**Auxiliary device shows as wrong type (Switch instead of Fan/Valve)**
+- iAquaLink only reports `type 0/1/2` (switch/dimmable/color). For fans and valves add an entry to `auxiliaryDevices` in your config with the correct `type`. See [Auxiliary Devices](#auxiliary-devices).
 
 **"Service Communication Failure" in Home app**
 - Verify your iAquaLink credentials are correct.
 - Confirm the iAquaLink app itself can connect to your system.
-- Try reducing the `pollingInterval` to avoid rate limiting.
+- Try increasing the `pollingInterval` to reduce API load.
 
 **Temperatures showing as "Not Available"**
 - The controller may report empty temperature values when sensors are not connected or the system is offline. This is normal.
