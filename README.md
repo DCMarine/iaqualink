@@ -221,12 +221,6 @@ docker restart homebridge
 
 ---
 
-## Contributing
-
-Pull requests are welcome! If you have a device or command that isn't working, capturing API traffic with [mitmproxy](https://mitmproxy.org) and opening an issue with the details is the fastest way to get support added.
-
----
-
 ## License
 
 MIT — see [LICENSE](LICENSE).
