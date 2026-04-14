@@ -1,3 +1,11 @@
+export type AuxType = 'switch' | 'fan' | 'valve';
+export type ValveType = 'generic' | 'irrigation' | 'shower' | 'faucet';
+export interface AuxDeviceConfig {
+    aux: string;
+    type: AuxType;
+    name?: string;
+    valveType?: ValveType;
+}
 export interface IaquaLinkConfig {
     platform: string;
     name: string;
@@ -5,6 +13,7 @@ export interface IaquaLinkConfig {
     password: string;
     pollingInterval?: number;
     temperatureUnit?: 'F' | 'C';
+    auxiliaryDevices?: AuxDeviceConfig[];
 }
 export interface DeviceState {
     name: string;
@@ -14,7 +23,7 @@ export interface DeviceState {
     subtype?: string;
     aux?: string;
 }
-export type DeviceType = 'pool_pump' | 'spa_pump' | 'pool_heater' | 'spa_heater' | 'pool_set_point' | 'spa_set_point' | 'pool_temp' | 'spa_temp' | 'air_temp' | 'solar_temp' | 'freeze_protection' | 'aux_switch' | 'aux_light_switch' | 'aux_dimmable_light' | 'aux_color_light' | 'sensor';
+export type DeviceType = 'pool_pump' | 'spa_pump' | 'pool_heater' | 'spa_heater' | 'pool_set_point' | 'spa_set_point' | 'pool_temp' | 'spa_temp' | 'air_temp' | 'solar_temp' | 'freeze_protection' | 'aux_switch' | 'aux_fan' | 'aux_valve' | 'aux_light_switch' | 'aux_dimmable_light' | 'aux_color_light' | 'sensor';
 export interface ParsedDevice {
     serial: string;
     systemName: string;

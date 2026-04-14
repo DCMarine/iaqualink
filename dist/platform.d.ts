@@ -15,6 +15,8 @@ export declare class IaquaLinkPlatform implements DynamicPlatformPlugin {
     configureAccessory(accessory: PlatformAccessory): void;
     discoverDevices(): Promise<void>;
     private discoverSystemDevices;
+    /** Searches home_screen for the temp_scale entry regardless of its position. */
+    private extractTempUnit;
     private parseHomeScreen;
     private parseDevicesScreen;
     private inferHomeDeviceType;
@@ -22,4 +24,5 @@ export declare class IaquaLinkPlatform implements DynamicPlatformPlugin {
     private registerDevice;
     private createAccessoryHandler;
     pollAll(systems: IAqualinkDevice[]): Promise<void>;
+    private applyUpdates;
 }
