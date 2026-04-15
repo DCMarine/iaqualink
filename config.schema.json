@@ -6,17 +6,16 @@
   "footerDisplay": "For help, visit: https://github.com/your-username/homebridge-iaqualink",
   "schema": {
     "type": "object",
+    "required": ["name", "username","password"],
     "properties": {
       "name": {
         "title": "Platform Name",
         "type": "string",
-        "default": "iAquaLink",
-        "required": true
+        "default": "iAquaLink"
       },
       "username": {
         "title": "iAquaLink Username (Email)",
         "type": "string",
-        "required": true,
         "format": "email",
         "placeholder": "your@email.com",
         "description": "The email address you use to log into the iAquaLink app."
@@ -24,7 +23,6 @@
       "password": {
         "title": "iAquaLink Password",
         "type": "string",
-        "required": true,
         "x-schema-form": {
           "type": "password"
         },
