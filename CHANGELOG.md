@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.3] - 2026-04-15
+
+### Fixed
+- **`config.schema.json` required fields now use correct JSON Schema format** — per-property `"required": true` declarations (non-standard) replaced with a top-level `"required": ["name", "username", "password"]` array. This ensures Homebridge Config UI X correctly enforces mandatory fields.
+
+### Changed
+- **`hap-nodejs` and `homebridge` added to resolved dependencies** — ensures type definitions and runtime bindings are available in environments where peer dependencies are not automatically installed (e.g. global `npm install -g`).
+
+---
+
 ## [1.0.2] - 2026-04-14
 
 ### Added
@@ -23,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`pollAll` similarly separated** — home-screen and auxiliary device polls are now independent so a transient error on one endpoint does not suppress state updates for the other.
 - **`temp_scale` detection is now position-independent** — previously hardcoded to `home_screen[3]`, it now searches the entire `home_screen` array for the `temp_scale` key to handle firmware variations.
 - **Pre-built `dist/` files are committed** — the compiled JavaScript is included in the repository so the plugin loads correctly after `npm install -g` without requiring a compile step inside the container.
+- **`config.schema.json` simplified** — the `auxiliaryDevices` schema block and its Config UI X layout section have been removed; auxiliary device overrides are configured by editing `config.json` directly.
+- **`tsconfig.json`**: `noUnusedParameters` set to `false` to allow unused parameters in callbacks and interface implementations without requiring explicit `_` prefixes.
 - `typescript` moved back to `devDependencies`.
 
 ### Fixed
