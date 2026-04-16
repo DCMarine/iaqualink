@@ -1,6 +1,6 @@
 {
   "name": "homebridge-iaqualink",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "displayName": "iAquaLink",
   "description": "Homebridge plugin for iAquaLink pool & spa controllers (Jandy/Zodiac)",
   "license": "MIT",
@@ -39,8 +39,5 @@
     "@types/node": "^20.0.0",
     "homebridge": "^1.8.0",
     "typescript": "^5.9.3"
-  },
-  "peerDependencies": {
-    "homebridge": ">=1.6.0"
   }
 }

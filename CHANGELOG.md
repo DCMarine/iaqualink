@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.4] - 2026-04-16
+
+### Changed
+- **`peerDependencies` removed from `package.json`** — `homebridge` is already declared in `devDependencies` and in the `engines` field; the redundant `peerDependencies` block has been removed to prevent npm from emitting peer-dependency warnings on install.
+
+---
+
 ## [1.0.3] - 2026-04-15
 
 ### Fixed
