@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.5] - 2026-04-27
+
+### Added
+- **Connection retry on startup failure** — if the initial login or device-list fetch fails (e.g. network is unavailable when Homebridge starts), the plugin now automatically retries every 60 seconds instead of giving up. A `[WARN] Retrying connection in 60 seconds...` message is logged after each failure. Any pending retry is cancelled cleanly on Homebridge shutdown.
+
+### Changed
+- **Poll errors are now logged at `error` level** — previously, home-screen and auxiliary-device poll failures were silently swallowed at `debug` level. They now appear as `[ERROR]` lines in the Homebridge log so connection problems are immediately visible.
+- **Auth failure during poll is now logged at `error` level** — if both the token refresh and full re-login fail during a polling cycle, the error is logged with a clear message instead of a low-visibility `warn`.
+
+---
+
 ## [1.0.4] - 2026-04-16
 
 ### Changed

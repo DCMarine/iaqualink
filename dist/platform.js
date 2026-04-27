@@ -19,6 +19,7 @@ class IaquaLinkPlatform {
     config;
     pollingInterval;
     pollingTimer;
+    retryTimer;
     constructor(log, config, homebridgeApi) {
         this.log = log;
         this.homebridgeApi = homebridgeApi;
@@ -35,6 +36,9 @@ class IaquaLinkPlatform {
             if (this.pollingTimer) {
                 clearInterval(this.pollingTimer);
             }
+            if (this.retryTimer) {
+                clearTimeout(this.retryTimer);
+            }
         });
     }
     configureAccessory(accessory) {
@@ -42,6 +46,11 @@ class IaquaLinkPlatform {
         this.accessories.push(accessory);
     }
     async discoverDevices() {
+        // Clear any previous retry timer before attempting again
+        if (this.retryTimer) {
+            clearTimeout(this.retryTimer);
+            this.retryTimer = undefined;
+        }
         try {
             this.log.info('Logging in to iAquaLink...');
             await this.api.login();
@@ -49,6 +58,8 @@ class IaquaLinkPlatform {
         }
         catch (err) {
             this.log.error('Failed to log in to iAquaLink:', String(err));
+            this.log.warn('Retrying connection in 60 seconds...');
+            this.retryTimer = setTimeout(() => this.discoverDevices(), 60_000);
             return;
         }
         let systems = [];
@@ -57,7 +68,9 @@ class IaquaLinkPlatform {
             this.log.info(`Found ${systems.length} iAquaLink system(s).`);
         }
         catch (err) {
-            this.log.error('Failed to fetch devices:', String(err));
+            this.log.error('Failed to fetch iAquaLink device list:', String(err));
+            this.log.warn('Retrying connection in 60 seconds...');
+            this.retryTimer = setTimeout(() => this.discoverDevices(), 60_000);
             return;
         }
         for (const system of systems) {
@@ -320,7 +333,9 @@ class IaquaLinkPlatform {
             await this.api.refreshAuth();
         }
         catch (err) {
-            this.log.warn('Token refresh failed during poll:', String(err));
+            // refreshAuth() already attempts a full re-login internally; if it still throws,
+            // both token refresh and full re-login failed.
+            this.log.error('iAquaLink authentication failed during poll (refresh and re-login both failed):', String(err));
         }
         for (const system of systems) {
             if (system.device_type !== 'iaqua') {
@@ -334,7 +349,7 @@ class IaquaLinkPlatform {
                 this.applyUpdates(this.parseHomeScreen(homeData, system, tempUnit));
             }
             catch (err) {
-                this.log.debug(`[${system.name}] Poll error (home screen):`, String(err));
+                this.log.error(`[${system.name}] Poll error (home screen):`, String(err));
             }
             // Poll auxiliary devices independently
             try {
@@ -342,7 +357,7 @@ class IaquaLinkPlatform {
                 this.applyUpdates(this.parseDevicesScreen(devicesData, system, tempUnit));
             }
             catch (err) {
-                this.log.debug(`[${system.name}] Poll error (auxiliary devices):`, String(err));
+                this.log.error(`[${system.name}] Poll error (auxiliary devices):`, String(err));
             }
         }
     }
