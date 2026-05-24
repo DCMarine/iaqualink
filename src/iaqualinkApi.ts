@@ -43,7 +43,6 @@ export class IAqualinkApiClient {
   private readonly http: AxiosInstance;
   private authToken = '';
   private userId = '';
-  private sessionId = '';
   private idToken = '';
   private refreshToken = '';
 
@@ -105,7 +104,6 @@ export class IAqualinkApiClient {
       const data = resp.data;
       this.authToken = data.authentication_token;
       this.userId = String(data.id);
-      this.sessionId = data.session_id;
       this.idToken = data.userPoolOAuth?.IdToken ?? '';
       this.refreshToken = data.userPoolOAuth?.RefreshToken ?? '';
       this.resetAuthFailures();
@@ -125,7 +123,6 @@ export class IAqualinkApiClient {
       const data = resp.data;
       this.authToken = data.authentication_token;
       this.userId = String(data.id);
-      this.sessionId = data.session_id;
       this.idToken = data.userPoolOAuth?.IdToken ?? this.idToken;
       if (data.userPoolOAuth?.RefreshToken) {
         this.refreshToken = data.userPoolOAuth.RefreshToken;
@@ -159,11 +156,16 @@ export class IAqualinkApiClient {
   }
 
   async sendCommand(serial: string, command: string, extra: Record<string, string> = {}): Promise<unknown> {
+    // session.json authenticates from the `Authorization: Bearer <IdToken>` header
+    // alone. The legacy `sessionID` query parameter is dead weight — verified
+    // empirically: Bearer-only returns 200 with full payload; sessionID without
+    // Bearer returns 401. Omitting it makes each plugin instance independent of
+    // any other client on the same account (mobile app, web portal, Alexa skill),
+    // which is the model the Alexa skill already uses.
     const params: Record<string, string> = {
       actionID: 'command',
       command,
       serial,
-      sessionID: this.sessionId,
       ...extra,
     };
     const queryStr = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');

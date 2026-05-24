@@ -16,16 +16,26 @@ export interface IDeviceState {
     subtype?: string;
     aux?: string;
 }
+export declare class AuthCooldownError extends Error {
+    constructor(failureCount: number, remainingMs: number);
+}
 export declare class IAqualinkApiClient {
     private readonly username;
     private readonly password;
     private readonly http;
     private authToken;
     private userId;
-    private sessionId;
     private idToken;
     private refreshToken;
+    private authFailureCount;
+    private lastAuthFailureAt;
     constructor(username: string, password: string);
+    private currentCooldownMs;
+    private remainingCooldownMs;
+    private throwIfCoolingDown;
+    private recordAuthFailure;
+    private resetAuthFailures;
+    get authFailureStreak(): number;
     login(): Promise<void>;
     refreshAuth(): Promise<void>;
     getDevices(): Promise<IAqualinkDevice[]>;

@@ -12,6 +12,7 @@ export declare class IaquaLinkPlatform implements DynamicPlatformPlugin {
     private readonly pollingInterval;
     private pollingTimer?;
     private retryTimer?;
+    private authBackoffLogged;
     constructor(log: Logger, config: PlatformConfig, homebridgeApi: API);
     configureAccessory(accessory: PlatformAccessory): void;
     discoverDevices(): Promise<void>;
