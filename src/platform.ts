@@ -28,6 +28,7 @@ export class IaquaLinkPlatform implements DynamicPlatformPlugin {
   private readonly pollingInterval: number;
   private pollingTimer?: ReturnType<typeof setInterval>;
   private retryTimer?: ReturnType<typeof setTimeout>;
+  private authBackoffLogged = false;
 
   constructor(
     public readonly log: Logger,
@@ -333,10 +334,24 @@ export class IaquaLinkPlatform implements DynamicPlatformPlugin {
     this.log.debug('Polling iAquaLink for updates...');
     try {
       await this.api.refreshAuth();
+      if (this.authBackoffLogged) {
+        this.log.info(`iAquaLink auth recovered (failure streak cleared).`);
+        this.authBackoffLogged = false;
+      }
     } catch (err) {
-      // refreshAuth() already attempts a full re-login internally; if it still throws,
-      // both token refresh and full re-login failed.
-      this.log.error('iAquaLink authentication failed during poll (refresh and re-login both failed):', String(err));
+      // refreshAuth() already attempts a full re-login internally; if it still
+      // throws, both token refresh and full re-login failed (or the API client
+      // is in its auth cooldown). Skip the data fetches this cycle — they will
+      // fail with the stale token and only add load to a backend that's already
+      // rejecting us. Log only on entry into the failure state so the log
+      // doesn't fill with one error every poll during a sustained outage.
+      if (!this.authBackoffLogged) {
+        this.log.error(
+          `iAquaLink auth failing (streak=${this.api.authFailureStreak}); skipping polls until recovery: ${String(err)}`,
+        );
+        this.authBackoffLogged = true;
+      }
+      return;
     }
     for (const system of systems) {
       if (system.device_type !== 'iaqua') { continue; }
