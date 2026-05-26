@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosError, AxiosInstance } from 'axios';
 
 export const AQUALINK_API_KEY = 'EOOEMOW4YR6QNB07';
 export const LOGIN_URL = 'https://prod.zodiac-io.com/users/v1/login';
@@ -169,10 +169,38 @@ export class IAqualinkApiClient {
       ...extra,
     };
     const queryStr = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
-    const resp = await this.http.get(`${SESSION_URL}?${queryStr}`, {
-      headers: this.sessionHeaders(),
-    });
-    return resp.data;
+    const url = `${SESSION_URL}?${queryStr}`;
+    try {
+      const resp = await this.http.get(url, { headers: this.sessionHeaders() });
+      return resp.data;
+    } catch (err) {
+      // Two distinct retryable failure modes; everything else propagates.
+      //
+      // 401 → IdToken truly invalid (expired or revoked). Refresh + retry.
+      //
+      // 5xx → Jandy's Lambda behind session.json returns
+      // `{"message":"Internal server error"}` with `x-amzn-ErrorType:
+      // InternalServerErrorException` on ~15% of polls even against a fresh
+      // Bearer token (verified 2026-05-25 with a side-channel probe: 26/166
+      // polls 500'd, zero auth errors, all recovered on the very next poll).
+      // The token isn't the problem — refreshing on 5xx does nothing useful
+      // and bounces back off the auth endpoint as 403, tripping the circuit
+      // breaker. A simple ~300ms retry against the same URL with the same
+      // token succeeds ~95% of the time. If the retry still fails, propagate
+      // and let the next poll cycle handle it.
+      const status = (err as AxiosError | undefined)?.response?.status;
+      if (status === 401) {
+        await this.refreshAuth();
+        const resp = await this.http.get(url, { headers: this.sessionHeaders() });
+        return resp.data;
+      }
+      if (status !== undefined && status >= 500 && status < 600) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        const resp = await this.http.get(url, { headers: this.sessionHeaders() });
+        return resp.data;
+      }
+      throw err;
+    }
   }
 
   async getHomeScreen(serial: string): Promise<unknown> {
