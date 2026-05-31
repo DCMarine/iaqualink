@@ -68,10 +68,8 @@ export class SensorAccessory {
   async getTemperature(): Promise<CharacteristicValue> {
     const raw = parseFloat(this.device.state);
     if (isNaN(raw)) {
-      this.platform.log.debug(`[${this.device.label}] No temperature reading available`);
-      throw new this.platform.homebridgeApi.hap.HapStatusError(
-        this.platform.homebridgeApi.hap.HAPStatus.NOT_ALLOWED_IN_CURRENT_STATE,
-      );
+      this.platform.log.debug(`[${this.device.label}] No temperature reading available — reporting 0°C`);
+      return 0;
     }
     const tempC = this.isFahrenheit ? fahrenheitToCelsius(raw) : raw;
     this.platform.log.debug(`[${this.device.label}] GET Temperature -> ${tempC}°C (raw: ${raw}°${this.isFahrenheit ? 'F' : 'C'})`);
